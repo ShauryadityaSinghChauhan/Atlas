@@ -4,11 +4,63 @@ A 26-question gamer personality quiz that doesn't give you a label. It plots you
 
 The visual identity is a risograph zine: paper grain, six fluoro inks, halftone dots and misregistered overprints. It comes in a day print and a night print.
 
-MongoDB-backed accounts and results, with local username/password and Google sign-in. The frontend remains vanilla ES modules with no build step.
+MongoDB-backed accounts and results, with local username/password and Google sign-in. Public profiles, friend comparisons, profile images, user-controlled data export/deletion and a small admin dashboard round out the app. The frontend remains vanilla ES modules with no build step.
 
-| Home | Results | Share card |
+## Product screenshots
+
+| Home / field test | Results atlas | Downloadable share card |
 |---|---|---|
 | ![Home](docs/home.jpg) | ![Results](docs/results.jpg) | ![Card](docs/card.png) |
+
+---
+
+## Feature guide
+
+### Take the field test
+
+- **26-question quiz:** scenarios, head-to-head choices and spectrum sliders map a player's tastes across six independent poles.
+- **Live position preview:** the mini atlas and playerprint strip update as answers are selected, while progress is saved locally so a refresh does not lose the test.
+- **Keyboard and motion support:** `1–5`, `A–D` and arrow-key shortcuts speed up the quiz; reduced-motion preferences are respected.
+- **Balanced scoring:** the engine produces 19 possible playerprints, including six pure types, 12 hybrids and the rare centre **Omnivore**.
+
+### Understand and share a result
+
+- **Interactive results atlas:** inspect your position, the population density, confidence cloud, pulls toward each pole and previous-run trajectory.
+- **Full reading:** six-pole scores, conviction, certainty, rarity, hidden drive, strengths, blind spots, co-op fit, natural nemesis and game suggestions.
+- **Share anywhere:** every result has a compact, stateless URL, server-rendered Open Graph tags, copy/native sharing and a downloadable 1080×1350 PNG card.
+- **Compare a friend:** open a shared PLAYERPRINT link alongside your own to see both positions, a play-style match score and a chemistry verdict.
+
+### Explore the community atlas
+
+- **Population atlas:** browse the anonymous player distribution and see how common each print is.
+- **Atlas filters:** narrow the crowd by playerprint or by source, without exposing personal account data.
+- **Methodology page:** explains the scoring, bootstrap confidence, calibration and integrity checks in plain language.
+
+### Accounts, profiles and friends
+
+- **Two sign-in options:** create a local username/password account or continue with Google OAuth. Passwords are never stored in plain text.
+- **Private field log:** signed-in players keep their past runs, name them, delete them and compare any two runs to see how their style changed.
+- **Guest-to-account claim:** a quiz taken before signing in can be adopted by the new account instead of being duplicated in the atlas.
+- **Public player profile:** choose a display name, publish selected runs and share a personal `/p/username` profile link.
+- **Profile photos:** upload a PNG, JPG or WebP avatar; the client centre-crops it and Cloudinary stores the result. Users can remove an avatar at any time.
+- **Profile card:** download a branded, shareable player-profile PNG based on the latest saved print.
+- **Achievement badges:** badges recognise milestones such as completing a first run, exploring multiple prints and building a friend circle.
+- **Friends dashboard:** add public profiles to a circle, remove them later and launch direct comparisons from the friend list.
+- **Session controls:** log out of the current browser without deleting the account or its saved field log.
+
+### Data ownership and moderation
+
+- **Data export:** download a portable JSON copy of the signed-in profile, saved runs and friends.
+- **Account deletion:** permanently delete the account, its profile, results and friend connections after confirmation.
+- **Admin dashboard:** users listed in `ADMIN_USERNAMES` can access aggregate operational statistics at `/admin`; normal players cannot open it.
+
+### Production and privacy safeguards
+
+- **MongoDB persistence:** users, sessions, friends and results are stored in MongoDB for Vercel deployments.
+- **Cloudinary isolation:** profile-image API secrets stay server-side; the browser never receives the Cloudinary secret.
+- **Secure sessions:** scrypt password hashes, random server-side sessions, `HttpOnly`/`SameSite` cookies, secure cookies under HTTPS and hourly expiry cleanup.
+- **Defence in depth:** same-origin writes, JSON-only request bodies, content-security policy, rate limits, transport security, request-size limits and path-traversal protection.
+- **Privacy by design:** no trackers or analytics; the public atlas uses anonymous result data rather than account identity.
 
 ---
 
@@ -25,7 +77,7 @@ npm start
 
 Open **http://localhost:3000**.
 
-On first boot the server creates MongoDB indexes and seeds the atlas with 640 simulated players. It also creates a demo account so you can try the signed-in features right away:
+The example `.env` sets `SEED=1`, so a local first run creates MongoDB indexes, 640 simulated atlas players and a demo account. In production, keep `SEED=0` so only real players are added.
 
 > **username:** `demo` · **password:** `playerprint`
 > (or click **"Use the demo account"** in the sign-in dialog)
@@ -55,7 +107,7 @@ Vercel functions have body-size limits, so profile photos are centre-cropped and
 
 | Command | What it does |
 |---|---|
-| `npm start` | Start the server (migrates and seeds automatically on first boot) |
+| `npm start` | Start the server and apply startup migrations; seeds only when `SEED=1` |
 | `npm run dev` | Start with `--watch` auto-restart |
 | `npm run migrate` | Apply pending schema migrations explicitly |
 | `npm run seed` | Add another batch of simulated players (and the demo user if missing) |
@@ -177,12 +229,21 @@ results  (public_id unique, user_id nullable, code, version, title_key, primary_
 | GET | `/api/me` | — | Current user or `null` |
 | POST | `/api/auth/register` | — | `{username, password}` → 201, sets session cookie |
 | POST | `/api/auth/login` | — | `{username, password}` → sets session cookie |
+| GET | `/api/auth/google` | — | Starts Google OAuth when it is configured |
+| GET | `/api/auth/google/callback` | — | Verifies Google identity, starts a session and returns to the profile |
 | POST | `/api/auth/logout` | — | Revokes the session |
+| PATCH | `/api/profile` | ✔ | Update display name, public-profile visibility or remove an avatar |
+| POST | `/api/profile/image` | ✔ | Upload a validated profile image to Cloudinary |
+| GET | `/api/account/export` | ✔ | Download profile, runs and friends as JSON |
+| DELETE | `/api/account` | ✔ | Permanently delete the signed-in account and associated data |
+| GET | `/api/players/:username` | — | Published player profile and shared runs |
+| GET / POST / DELETE | `/api/friends` / `/api/friends/:id` | ✔ | List, add or remove a public-profile friend |
+| GET | `/api/admin/stats` | Admin | Aggregate dashboard statistics for configured admins |
 | POST | `/api/results` | optional | `{code, label?, claim?}`. Guests feed the anonymous atlas; users also save to their log. Idempotent for 10 min. `claim` adopts your own guest row |
 | GET | `/api/results` | ✔ | Your field log |
 | PATCH | `/api/results/:id` | ✔ | `{label}`: name a run |
 | DELETE | `/api/results/:id` | ✔ | Delete one of your runs |
-| GET | `/api/stats` | — | Population: total, per-title counts, 20×20 density grid (cached 15 s) |
+| GET | `/api/stats` | — | Population: total, per-title counts, 20×20 density grid (cached 15 s), with optional atlas filters |
 | GET | `/r/:code` | — | SPA shell with per-result `<title>` / Open Graph tags |
 
 ### Security
