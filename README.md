@@ -44,8 +44,8 @@ docker run -p 3000:3000 -v playerprint-data:/data playerprint
 The repository includes a Vercel serverless entry point and rewrites in `vercel.json`.
 
 1. Push this repository to GitHub and import it in Vercel.
-2. In Vercel **Project Settings → Environment Variables**, add the values from `.env` (never upload the `.env` file): `MONGODB_URI`, `MONGO_DB`, `STORE=mongo`, Google OAuth variables, and Cloudinary variables.
-3. Set `PUBLIC_URL` to your final `https://…vercel.app` domain, set `SECURE_COOKIES=1`, and set `SEED=0`. Seed the MongoDB database once from your machine before deployment with `SEED=1 STORE=mongo npm run seed` using the same Atlas variables, then return `SEED` to `0`.
+2. In Vercel **Project Settings → Environment Variables**, add the values from `.env` (never upload the `.env` file): `MONGODB_URI`, `MONGO_DB`, `STORE=mongo`, Google OAuth variables, and Cloudinary variables. Add them to the **Production** environment. Only add them to Preview if you also configure a separate OAuth callback for every preview URL.
+3. Set `PUBLIC_URL` to your final `https://…vercel.app` domain, set `SECURE_COOKIES=1`, and set `SEED=0`. The app also forces secure cookies on Vercel and refuses to start there without MongoDB. Seed the MongoDB database once from your machine before deployment with `SEED=1 STORE=mongo npm run seed` using the same Atlas variables, then return `SEED` to `0`.
 4. In Google Cloud Console add `https://your-domain.vercel.app/api/auth/google/callback` as an authorized redirect URI. It must exactly match `GOOGLE_REDIRECT_URI`.
 5. In MongoDB Atlas allow Vercel network access. For a first deployment, Atlas's `0.0.0.0/0` rule works but should be restricted when you have stable egress IPs.
 
@@ -71,15 +71,15 @@ Set them in the shell or copy `.env.example` to `.env`. The `.env` file is read 
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `MONGO_URI` | — | MongoDB connection string. Required with `STORE=mongo`. |
+| `MONGO_URI` / `MONGODB_URI` | — | MongoDB connection string. Required with `STORE=mongo`. |
 | `MONGO_DB` | `playerprint` | MongoDB database name. |
-| `STORE` | `mongo` when `MONGO_URI` is set | `mongo` \| `auto` \| `sqlite` \| `json`. Use `mongo` in production. |
+| `STORE` | `mongo` when a Mongo URI is set | `mongo` \| `auto` \| `sqlite` \| `json`. Use `mongo` in production. |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth 2.0 Web client ID. |
 | `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret. Keep it private. |
 | `GOOGLE_REDIRECT_URI` | — | Exact Google-authorized callback, e.g. `http://localhost:3000/api/auth/google/callback`. |
 | `SECURE_COOKIES` | `0` | Set `1` behind HTTPS so the session cookie is `Secure` |
 | `SESSION_DAYS` | `30` | Session lifetime |
-| `SEED` | `1` | Seed simulated players + demo user on first boot (`0` to disable) |
+| `SEED` | `0` | Seed simulated players + demo user only when explicitly set to `1` |
 | `SEED_PLAYERS` | `640` | How many simulated players to seed |
 | `PUBLIC_URL` | request host | Absolute origin used in Open Graph URLs |
 

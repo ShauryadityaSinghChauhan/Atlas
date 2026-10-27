@@ -303,6 +303,9 @@ export function createApp({ store, config }) {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Content-Security-Policy', CSP);
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (config.secureCookies || req.headers['x-forwarded-proto'] === 'https') {
+      res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    }
 
     const url = new URL(req.url, 'http://x');
     const { pathname } = url;

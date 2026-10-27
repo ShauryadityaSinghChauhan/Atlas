@@ -24,11 +24,13 @@ export const config = {
   // MONGODB_URI is accepted as the conventional alias used by Atlas tooling.
   mongoUri: env.MONGO_URI || env.MONGODB_URI || '',
   mongoDb: env.MONGO_DB || 'playerprint',
-  // Set to 1 when served over HTTPS so the session cookie gets `Secure`.
-  secureCookies: env.SECURE_COOKIES === '1',
+  // Vercel always serves the public app over HTTPS. Keep Secure cookies on there
+  // even if a deployment setting was accidentally omitted.
+  secureCookies: env.SECURE_COOKIES === '1' || env.VERCEL === '1',
   sessionDays: Number(env.SESSION_DAYS) || 30,
-  // Seed simulated players + the demo account on first boot.
-  seedOnBoot: env.SEED !== '0',
+  // Demo content is opt-in. This prevents a production deployment from adding
+  // simulated accounts simply because SEED was not configured.
+  seedOnBoot: env.SEED === '1',
   seedPlayers: Number(env.SEED_PLAYERS) || 640,
   publicUrl: env.PUBLIC_URL || '',
   googleClientId: env.GOOGLE_CLIENT_ID || '',
