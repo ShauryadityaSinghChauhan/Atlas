@@ -1,8 +1,8 @@
-# PLAYERPRINT — zero npm dependencies, so the image is just Node + source.
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 DATA_DIR=/data
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY server ./server
 COPY shared ./shared
 COPY public ./public

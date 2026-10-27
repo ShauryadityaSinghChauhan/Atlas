@@ -43,7 +43,7 @@ export async function renderAccount(root) {
   )));
   photoInput.addEventListener('change', async () => {
     const file = photoInput.files?.[0]; if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast('Choose an image smaller than 5 MB.'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast('Choose an image smaller than 2 MB for deployment uploads.'); return; }
     try {
       const cropped = await crop(file); const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read this image')); reader.readAsDataURL(cropped); });
       const out = await api.uploadProfileImage(dataUrl);

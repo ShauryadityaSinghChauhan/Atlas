@@ -187,11 +187,11 @@ export function createApp({ store, config }) {
   api.post('/api/profile/image', async (req) => {
     limit('write', req); const u = await requireUser(req);
     if (!config.cloudinaryCloudName || !config.cloudinaryApiKey || !config.cloudinaryApiSecret) throw new HttpError(503, 'Profile image uploads are not configured', 'cloudinary_not_configured');
-    const { dataUrl } = await readJson(req, 7 * 1024 * 1024);
+    const { dataUrl } = await readJson(req, 3 * 1024 * 1024);
     const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
     if (!m) throw new HttpError(400, 'Choose a PNG, JPG, or WebP image', 'bad_image');
     const bytes = Buffer.from(m[2], 'base64');
-    if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new HttpError(413, 'Choose an image smaller than 5 MB', 'image_too_large');
+    if (!bytes.length || bytes.length > 2 * 1024 * 1024) throw new HttpError(413, 'Choose an image smaller than 2 MB', 'image_too_large');
     const timestamp = Math.floor(Date.now() / 1000), folder = 'playerprint/profiles', publicId = `user-${u.id}`, overwrite = 'true';
     const signature = crypto.createHash('sha1').update(`folder=${folder}&overwrite=${overwrite}&public_id=${publicId}&timestamp=${timestamp}${config.cloudinaryApiSecret}`).digest('hex');
     const form = new FormData();
