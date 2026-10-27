@@ -10,6 +10,7 @@ function render(mode, reason) {
   const err = h('div', { class: 'form-err', role: 'alert' });
   const user = h('input', { id: 'au-user', name: 'username', autocomplete: 'username', required: true, minlength: 3, maxlength: 24, pattern: '[A-Za-z0-9_.\\-]+', spellcheck: 'false', autocapitalize: 'off' });
   const pass = h('input', { id: 'au-pass', name: 'password', type: 'password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', required: true, minlength: 8 });
+  const email = h('input', { id: 'au-email', type: 'email', autocomplete: 'email', placeholder: 'you@example.com' });
   const submit = h('button', { class: 'btn btn-hot', type: 'submit' }, mode === 'login' ? 'Sign in' : 'Create account', h('span', { class: 'arrow' }, '→'));
 
   const form = h('form', { class: 'dlg-body', novalidate: true },
@@ -19,6 +20,7 @@ function render(mode, reason) {
     h('div', { class: 'field' }, h('label', { for: 'au-user' }, 'Username'), user),
     h('div', { class: 'field' }, h('label', { for: 'au-pass' }, 'Password'), pass,
       mode === 'register' ? h('small', { class: 'kicker', style: { textTransform: 'none', letterSpacing: '0' } }, 'At least 8 characters.') : null),
+    mode === 'register' ? h('div', { class: 'field' }, h('label', { for: 'au-email' }, 'Recovery email (optional)'), email) : null,
     err,
     h('div', { class: 'auth-divider', 'aria-hidden': 'true' }, h('span', {}, 'or')),
     h('button', { type: 'button', class: 'google-btn', onclick: () => { window.location.assign('/api/auth/google'); } },
@@ -26,7 +28,7 @@ function render(mode, reason) {
     h('div', { class: 'dlg-foot' },
       submit,
       mode === 'login'
-        ? h('button', { type: 'button', class: 'linkish', onclick: () => { user.value = 'demo'; pass.value = 'playerprint'; form.requestSubmit(); } }, 'Use the demo account')
+        ? [h('button', { type: 'button', class: 'linkish', onclick: () => { user.value = 'demo'; pass.value = 'playerprint'; form.requestSubmit(); } }, 'Use the demo account'), h('button', { type: 'button', class: 'linkish', onclick: async () => { const address = prompt('Enter your recovery email'); if (address) { await api.requestPasswordReset(address); toast('If an account matches, a reset link has been sent.'); } } }, 'Forgot password?')]
         : null));
 
   form.addEventListener('submit', async (e) => {
@@ -35,7 +37,7 @@ function render(mode, reason) {
     if (!user.value.trim() || !pass.value) { err.textContent = 'Fill in both fields.'; return; }
     submit.disabled = true;
     try {
-      const r = mode === 'login' ? await api.login(user.value.trim(), pass.value) : await api.register(user.value.trim(), pass.value);
+      const r = mode === 'login' ? await api.login(user.value.trim(), pass.value) : await api.register(user.value.trim(), pass.value, email.value.trim());
       session.set(r.user);
       toast(mode === 'login' ? `Welcome back, ${r.user.username}.` : `Account created. Hi, ${r.user.username}!`);
       close(r.user);

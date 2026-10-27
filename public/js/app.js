@@ -12,6 +12,9 @@ import { renderAbout } from './views/about.js';
 import { renderNotFound } from './views/notfound.js';
 import { renderProfile } from './views/profile.js';
 import { renderAdmin } from './views/admin.js';
+import { renderAccount } from './views/account.js';
+import { renderReset } from './views/reset.js';
+import { renderFriends } from './views/friends.js';
 
 const routes = [
   [/^\/$/, renderHome],
@@ -22,6 +25,9 @@ const routes = [
   [/^\/about\/?$/, renderAbout],
   [/^\/p\/([a-zA-Z0-9_.-]+)\/?$/, renderProfile],
   [/^\/admin\/?$/, renderAdmin],
+  [/^\/profile\/?$/, renderAccount],
+  [/^\/reset-password\/?$/, renderReset],
+  [/^\/friends\/?$/, renderFriends],
 ];
 
 const view = $('#view');
@@ -66,16 +72,18 @@ window.addEventListener('pp:navigate', render);
 
 // Masthead auth button
 const authBtn = $('#auth-btn');
+const profileNav = $('#profile-nav');
 session.subscribe((u) => {
-  authBtn.replaceChildren(...(u ? [h('span', { class: 'nav-long' }, `${u.username} · `), 'sign out'] : ['Sign in']));
-  authBtn.title = u ? 'Sign out' : 'Sign in or create an account';
+  profileNav.hidden = !u;
+  authBtn.replaceChildren(...(u ? ['Log out'] : ['Sign in']));
+  authBtn.title = u ? 'Log out of this browser' : 'Sign in or create an account';
 });
 authBtn.addEventListener('click', async () => {
   if (session.user) {
     await api.logout().catch(() => {});
     session.set(null);
     toast('Signed out. Your runs are safe in your field log.');
-    if (location.pathname === '/me') render();
+    if (location.pathname === '/me' || location.pathname === '/profile') render();
   } else {
     await openAuth({ mode: 'login' });
   }

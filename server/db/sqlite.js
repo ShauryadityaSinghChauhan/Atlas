@@ -77,10 +77,11 @@ export async function openSqlite(dataDir) {
     claim: db.prepare('UPDATE results SET user_id = ? WHERE public_id = ? AND code = ? AND user_id IS NULL AND is_seed = 0 AND created_at > ?'),
     profile: db.prepare('SELECT *, COALESCE(display_name, username) AS display_name FROM users WHERE username = ? AND public_profile = 1'),
     profileResults: db.prepare('SELECT * FROM results WHERE user_id = ? ORDER BY created_at DESC LIMIT 12'),
-    updProfile: db.prepare('UPDATE users SET display_name = ?, public_profile = ? WHERE id = ?'),
+    updProfile: db.prepare('UPDATE users SET display_name = ?, public_profile = ?, avatar_url = ? WHERE id = ?'),
     addFriend: db.prepare('INSERT OR IGNORE INTO friends (owner_id, friend_id, created_at) VALUES (?, ?, ?)'),
     friendRows: db.prepare('SELECT u.*, COALESCE(u.display_name, u.username) AS display_name FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.owner_id = ? AND u.public_profile = 1'),
     delFriend: db.prepare('DELETE FROM friends WHERE owner_id = ? AND friend_id = ?'),
+    delUser: db.prepare('DELETE FROM users WHERE id = ?'),
   };
 
   return {
@@ -121,11 +122,12 @@ export async function openSqlite(dataDir) {
     listResultsByUser: (userId, limit = 100) => q.byUser.all(userId, limit).map(rowToResult),
     deleteResult: (pid, userId) => q.delResult.run(pid, userId).changes > 0,
     labelResult: (pid, userId, label) => q.label.run(label, pid, userId).changes > 0,
-    updateProfile(id, patch) { q.updProfile.run(patch.display_name, patch.public_profile ? 1 : 0, id); return q.userById.get(id); },
+    updateProfile(id, patch) { q.updProfile.run(patch.display_name, patch.public_profile ? 1 : 0, patch.avatar_url || null, id); return q.userById.get(id); },
     publicProfile(username) { const u = q.profile.get(username); return u ? { user: u, results: q.profileResults.all(u.id).map(rowToResult) } : null; },
     addFriend(ownerId, username) { const u = q.profile.get(username); if (!u || u.id === ownerId) return null; q.addFriend.run(ownerId, u.id, Date.now()); return u; },
     listFriends: (ownerId) => q.friendRows.all(ownerId),
     removeFriend: (ownerId, friendId) => q.delFriend.run(ownerId, friendId).changes > 0,
+    deleteUser: (userId) => q.delUser.run(userId).changes > 0,
     stats(bins, filters = {}) {
       const clauses = [], values = [];
       if (filters.title) { clauses.push('title_key = ?'); values.push(filters.title); }

@@ -18,6 +18,7 @@ export async function openMongoStore({ uri, dbName = 'playerprint' }) {
   const sessions = db.collection('sessions');
   const results = db.collection('results');
   const friends = db.collection('friends');
+  const resets = db.collection('password_resets');
   await Promise.all([
     users.createIndex({ username: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } }),
     users.createIndex({ google_sub: 1 }, { unique: true, sparse: true }),
@@ -27,6 +28,7 @@ export async function openMongoStore({ uri, dbName = 'playerprint' }) {
     results.createIndex({ user_id: 1, created_at: -1 }),
     results.createIndex({ title_key: 1 }),
     friends.createIndex({ owner_id: 1, friend_id: 1 }, { unique: true }),
+    resets.createIndex({ token_hash: 1 }, { unique: true }), resets.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
   ]);
 
   return {
@@ -34,12 +36,13 @@ export async function openMongoStore({ uri, dbName = 'playerprint' }) {
     file: `${uri.replace(/:\/\/[^@]+@/, '://***@')}/${dbName}`,
     migrate: async () => [],
     transaction: async (fn) => fn(),
-    async createUser(username, passHash) {
-      const row = { username, pass_hash: passHash, display_name: username, public_profile: false, created_at: Date.now() };
+    async createUser(username, passHash, email = null) {
+      const row = { username, pass_hash: passHash, email: email || null, display_name: username, public_profile: false, created_at: Date.now() };
       const out = await users.insertOne(row);
       return { id: out.insertedId.toString(), username };
     },
     async findUserByName(username) { return userView(await users.findOne({ username }, { collation: { locale: 'en', strength: 2 } })); },
+    async findUserByEmail(email) { return userView(await users.findOne({ email: String(email).toLowerCase() })); },
     async findUserById(id) {
       if (!ObjectId.isValid(id)) return null;
       return userView(await users.findOne({ _id: new ObjectId(id) }));
@@ -93,6 +96,9 @@ export async function openMongoStore({ uri, dbName = 'playerprint' }) {
     },
     async listFriends(ownerId) { const rows = await friends.find({ owner_id: ownerId }).toArray(); const ids = rows.map((r) => new ObjectId(r.friend_id)); return (await users.find({ _id: { $in: ids }, public_profile: true }).toArray()).map(userView); },
     removeFriend: (ownerId, friendId) => friends.deleteOne({ owner_id: ownerId, friend_id: friendId }),
+    createPasswordReset: (tokenHash, userId, expiresAt) => resets.insertOne({ token_hash: tokenHash, user_id: userId, expires_at: expiresAt }),
+    async consumePasswordReset(tokenHash, passHash) { const token = await resets.findOneAndDelete({ token_hash: tokenHash, expires_at: { $gt: Date.now() } }); if (!token) return false; await users.updateOne({ _id: new ObjectId(token.user_id) }, { $set: { pass_hash: passHash } }); return true; },
+    async deleteUser(userId) { await Promise.all([sessions.deleteMany({ user_id: userId }), results.deleteMany({ user_id: userId }), friends.deleteMany({ $or: [{ owner_id: userId }, { friend_id: userId }] }), resets.deleteMany({ user_id: userId })]); return (await users.deleteOne({ _id: new ObjectId(userId) })).deletedCount > 0; },
     async stats(bins, filters = {}) {
       const query = {}; if (filters.title) query.title_key = filters.title; if (filters.source === 'real') query.is_seed = false; if (filters.source === 'seed') query.is_seed = true;
       const rows = await results.find(query, { projection: { title_key: 1, is_seed: 1, x: 1, y: 1 } }).toArray();

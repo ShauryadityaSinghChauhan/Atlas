@@ -14,6 +14,7 @@ import { describeShort } from '../shared/content.js';
 const STATS_BINS = 20;
 const STATS_TTL = 15_000;
 const newPublicId = () => crypto.randomBytes(6).toString('base64url');
+const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -22,8 +23,8 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob:",
-  "connect-src 'self'",
+  "img-src 'self' data: blob: https://res.cloudinary.com",
+  "connect-src 'self' https://api.cloudinary.com",
   "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'self'",
@@ -38,7 +39,7 @@ function toPublicResult(row) {
 }
 function toUser(row) {
   return { id: row.id, username: row.username, displayName: row.display_name || row.username,
-    avatarUrl: row.avatar_url || null, publicProfile: !!row.public_profile, createdAt: row.created_at };
+    avatarUrl: row.avatar_url || null, publicProfile: !!row.public_profile, googleSub: row.google_sub || null, createdAt: row.created_at };
 }
 
 export function createApp({ store, config }) {
@@ -81,10 +82,11 @@ export function createApp({ store, config }) {
 
   api.post('/api/auth/register', async (req, res) => {
     limit('auth', req);
-    const { username, password } = validateCredentials(await readJson(req));
+    const body = await readJson(req); const { username, password } = validateCredentials(body);
+    const email = typeof body.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim()) ? body.email.trim().toLowerCase() : null;
     if (await store.findUserByName(username)) throw new HttpError(409, 'That username is taken', 'username_taken');
     let user;
-    try { user = await store.createUser(username, await hashPassword(password)); } catch (e) {
+    try { user = await store.createUser(username, await hashPassword(password), email); } catch (e) {
       if (/UNIQUE/.test(e.message)) throw new HttpError(409, 'That username is taken', 'username_taken');
       throw e;
     }
@@ -146,14 +148,63 @@ export function createApp({ store, config }) {
   });
 
   api.post('/api/auth/logout', async (req, res) => { await sessions.revoke(req, res); return { ok: true }; });
+  api.post('/api/auth/password-reset', async (req) => {
+    limit('auth', req); const body = await readJson(req); const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const user = email && store.findUserByEmail ? await store.findUserByEmail(email) : null;
+    if (user && store.createPasswordReset) {
+      const token = crypto.randomBytes(32).toString('base64url'); await store.createPasswordReset(tokenHash(token), user.id, Date.now() + 3600_000);
+      const base = config.resetBaseUrl || `http://${req.headers.host}`; const link = `${base.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
+      if (config.resendApiKey && config.emailFrom) {
+        await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: config.emailFrom, to: [email], subject: 'Reset your PLAYERPRINT password', html: `<p>Reset your password:</p><p><a href="${link}">${link}</a></p><p>This link expires in one hour.</p>` }) }).catch(() => {});
+      } else console.log(`[auth] password reset for ${user.username}: ${link}`);
+    }
+    return { ok: true };
+  });
+  api.post('/api/auth/password-reset/confirm', async (req) => {
+    limit('auth', req); const body = await readJson(req); const token = typeof body.token === 'string' ? body.token : ''; const password = typeof body.password === 'string' ? body.password : '';
+    if (!token || password.length < 8 || !store.consumePasswordReset || !(await store.consumePasswordReset(tokenHash(token), await hashPassword(password)))) throw new HttpError(400, 'This reset link is invalid or expired', 'bad_reset_token');
+    return { ok: true };
+  });
 
   api.patch('/api/profile', async (req) => {
     limit('write', req); const u = await requireUser(req); const body = await readJson(req);
     const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 40) : u.display_name || u.username;
     const publicProfile = typeof body.publicProfile === 'boolean' ? body.publicProfile : !!u.public_profile;
-    const updated = await store.updateProfile(u.id, { display_name: displayName || u.username, public_profile: publicProfile });
+    const avatarUrl = body.removeAvatar === true ? null : (typeof body.avatarUrl === 'string' && /^https:\/\/res\.cloudinary\.com\//.test(body.avatarUrl) ? body.avatarUrl.slice(0, 1000) : u.avatar_url || null);
+    const updated = await store.updateProfile(u.id, { display_name: displayName || u.username, public_profile: publicProfile, avatar_url: avatarUrl });
     return { user: toUser(updated) };
   });
+  api.post('/api/profile/upload-signature', async (req) => {
+    limit('write', req); const u = await requireUser(req);
+    if (!config.cloudinaryCloudName || !config.cloudinaryApiKey || !config.cloudinaryApiSecret) throw new HttpError(503, 'Profile image uploads are not configured', 'cloudinary_not_configured');
+    const timestamp = Math.floor(Date.now() / 1000); const folder = 'playerprint/profiles'; const publicId = `user-${u.id}`; const overwrite = 'true';
+    const toSign = `folder=${folder}&overwrite=${overwrite}&public_id=${publicId}&timestamp=${timestamp}${config.cloudinaryApiSecret}`;
+    const signature = crypto.createHash('sha1').update(toSign).digest('hex');
+    return { cloudName: config.cloudinaryCloudName, apiKey: config.cloudinaryApiKey, timestamp, folder, publicId, overwrite, signature };
+  });
+  // Relay the image through the signed-in server. This avoids browser/CORS
+  // restrictions while still keeping Cloudinary credentials private.
+  api.post('/api/profile/image', async (req) => {
+    limit('write', req); const u = await requireUser(req);
+    if (!config.cloudinaryCloudName || !config.cloudinaryApiKey || !config.cloudinaryApiSecret) throw new HttpError(503, 'Profile image uploads are not configured', 'cloudinary_not_configured');
+    const { dataUrl } = await readJson(req, 7 * 1024 * 1024);
+    const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
+    if (!m) throw new HttpError(400, 'Choose a PNG, JPG, or WebP image', 'bad_image');
+    const bytes = Buffer.from(m[2], 'base64');
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new HttpError(413, 'Choose an image smaller than 5 MB', 'image_too_large');
+    const timestamp = Math.floor(Date.now() / 1000), folder = 'playerprint/profiles', publicId = `user-${u.id}`, overwrite = 'true';
+    const signature = crypto.createHash('sha1').update(`folder=${folder}&overwrite=${overwrite}&public_id=${publicId}&timestamp=${timestamp}${config.cloudinaryApiSecret}`).digest('hex');
+    const form = new FormData();
+    form.set('file', new Blob([bytes], { type: m[1] }), `profile.${m[1].split('/')[1]}`);
+    for (const [key, value] of Object.entries({ api_key: config.cloudinaryApiKey, timestamp: String(timestamp), folder, public_id: publicId, overwrite, signature })) form.set(key, value);
+    let response; try { response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudinaryCloudName)}/image/upload`, { method: 'POST', body: form }); } catch { throw new HttpError(502, 'Could not reach the image service', 'cloudinary_unavailable'); }
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok || !out.secure_url) throw new HttpError(502, out.error?.message || 'Image upload failed', 'cloudinary_upload_failed');
+    const updated = await store.updateProfile(u.id, { display_name: u.display_name || u.username, public_profile: !!u.public_profile, avatar_url: out.secure_url });
+    return { avatarUrl: out.secure_url, user: toUser(updated) };
+  });
+  api.get('/api/account/export', async (req) => { const u = await requireUser(req); return { exportedAt: Date.now(), profile: toUser(u), results: (await store.listResultsByUser(u.id, 500)).map(toPublicResult), friends: (await store.listFriends(u.id)).map(toUser) }; });
+  api.delete('/api/account', async (req, res) => { const u = await requireUser(req); if (!store.deleteUser || !(await store.deleteUser(u.id))) throw new HttpError(500, 'Could not delete account', 'delete_failed'); await sessions.revoke(req, res); return { ok: true }; });
   api.get('/api/players/:username', async (_req, _res, { username }) => {
     const profile = await store.publicProfile(username);
     if (!profile) throw new HttpError(404, 'This player has not published a profile', 'not_found');
@@ -236,7 +287,7 @@ export function createApp({ store, config }) {
   });
 
   /* --------------------------- SPA shell --------------------------- */
-  const SPA_ROUTES = /^\/(quiz|me|atlas|about|admin|p\/[a-zA-Z0-9_.-]+|r\/[0-9a-z]+)?\/?$/;
+  const SPA_ROUTES = /^\/(quiz|me|profile|friends|reset-password|atlas|about|admin|p\/[a-zA-Z0-9_.-]+|r\/[0-9a-z]+)?\/?$/;
 
   function renderShell(req, pathname) {
     const entry = statics.load(path.join(ROOT, 'public', 'index.html'));

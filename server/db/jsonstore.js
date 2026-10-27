@@ -100,6 +100,7 @@ export async function openJsonStore(dataDir) {
     addFriend(ownerId, username) { const u = s.users.find((x) => x.username.toLowerCase() === String(username).toLowerCase() && x.public_profile); if (!u || u.id === ownerId) return null; if (!s.friends.some((f) => f.owner_id === ownerId && f.friend_id === u.id)) s.friends.push({ owner_id: ownerId, friend_id: u.id, created_at: Date.now() }); save(); return u; },
     listFriends: (ownerId) => s.friends.filter((f) => f.owner_id === ownerId).map((f) => s.users.find((u) => u.id === f.friend_id)).filter((u) => u?.public_profile),
     removeFriend(ownerId, friendId) { const i = s.friends.findIndex((f) => f.owner_id === ownerId && f.friend_id === Number(friendId)); if (i < 0) return false; s.friends.splice(i, 1); save(); return true; },
+    deleteUser(userId) { const i = s.users.findIndex((u) => u.id === userId); if (i < 0) return false; s.users.splice(i, 1); s.results = s.results.filter((r) => r.userId !== userId); s.friends = s.friends.filter((f) => f.owner_id !== userId && f.friend_id !== userId); for (const [key, value] of Object.entries(s.sessions)) if (value.user_id === userId) delete s.sessions[key]; save(); return true; },
     stats(bins, filters = {}) {
       const titles = {}, cells = new Map();
       let seeded = 0;

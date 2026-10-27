@@ -190,7 +190,7 @@ h1, h2, h3 { margin: 0; line-height: .95; font-weight: 800; letter-spacing: -.02
   .brand-mark { width: 26px; height: 26px; }
   .brand-word { font-size: 16px; }
   .nav { gap: 10px; font-size: 11px; }
-  .nav a[href="/atlas"], .nav-long { display: none; }
+  .nav a[href="/atlas"], .nav a[href="/profile"], .nav-long { display: none; }
   .nav-auth { padding: 8px 10px; }
   .theme-btn { width: 30px; height: 30px; }
 }

@@ -36,4 +36,10 @@ export const config = {
   googleRedirectUri: env.GOOGLE_REDIRECT_URI || '',
   // Comma-separated usernames allowed to view /admin (for example: ADMIN_USERNAMES=alice,bob).
   adminUsernames: new Set((env.ADMIN_USERNAMES || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean)),
+  cloudinaryCloudName: env.CLOUDINARY_CLOUD_NAME || '',
+  cloudinaryApiKey: env.CLOUDINARY_API_KEY || '',
+  cloudinaryApiSecret: env.CLOUDINARY_API_SECRET || '',
+  resetBaseUrl: env.RESET_BASE_URL || env.PUBLIC_URL || '',
+  resendApiKey: env.RESEND_API_KEY || '',
+  emailFrom: env.EMAIL_FROM || '',
 };
