@@ -82,7 +82,7 @@ The example `.env` sets `SEED=1`, so a local first run creates MongoDB indexes, 
 > **username:** `demo` · **password:** `playerprint`
 > (or click **"Use the demo account"** in the sign-in dialog)
 
-The demo account has four past runs showing a drift from *The Curator* to *The Sequence Breaker*.
+The seed also creates a connected demo community: **Atlas** (`demo`), **Luna Vale** (`luna`), **Pixel Forge** (`pixel`), **Arjun Plays** (`arjun`) and **Nova Drift** (`nova`). All use the password `playerprint`, have public profiles and saved runs, and are linked as friends so you can immediately test profile sharing, field-log comparisons, badges and the friend dashboard. Set `ADMIN_USERNAMES=demo` locally to use the admin dashboard with the Atlas account.
 
 ### With Docker
 
@@ -111,6 +111,7 @@ Vercel functions have body-size limits, so profile photos are centre-cropped and
 | `npm run dev` | Start with `--watch` auto-restart |
 | `npm run migrate` | Apply pending schema migrations explicitly |
 | `npm run seed` | Add another batch of simulated players (and the demo user if missing) |
+| `npm run seed:community` | Add only the five connected demo profiles, their runs and friendship links |
 | `npm run reset` | Wipe `data/` and reseed from scratch |
 | `npm test` | 28 tests: engine properties + full API integration, run against **both** storage adapters |
 | `npm run calibrate` | Monte-Carlo report used to tune the scoring curve |

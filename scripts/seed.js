@@ -9,5 +9,5 @@ if (process.argv.includes('--reset')) {
   console.log(`[seed] reset ${config.dataDir}`);
 }
 const store = await openStore(config);
-await seed(store, { players: config.seedPlayers });
+await seed(store, { players: process.argv.includes('--community') ? 0 : config.seedPlayers });
 await store.close();

@@ -8,12 +8,13 @@ import path from 'node:path';
 import { openStore } from '../server/db/index.js';
 import { sqliteAvailable } from '../server/db/sqlite.js';
 import { createApp } from '../server/app.js';
-import { seed } from '../server/seed.js';
+import { seed, DEMO_COMMUNITY } from '../server/seed.js';
 import { QUESTIONS, encodeAnswers } from '../shared/engine.js';
 
 const codeOf = (fill) => encodeAnswers(QUESTIONS.map((q, i) => fill(q, i)));
 const CODE_A = codeOf((q, i) => i % (q.type === 'versus' ? 2 : 4));
 const CODE_B = codeOf((q) => (q.type === 'spectrum' ? 4 : 1));
+const DEMO_RUNS = DEMO_COMMUNITY.reduce((total, player) => total + player.arc.length, 0);
 
 const HAS_SQLITE = await sqliteAvailable();
 
@@ -58,9 +59,22 @@ for (const kind of ['sqlite', 'json']) {
       assert.equal(h.status, 200);
       assert.equal(h.json.store, kind);
       const s = await call('GET', '/api/stats');
-      assert.equal(s.json.total, 44); // 40 simulated + 4 demo runs
+      assert.equal(s.json.total, 40 + DEMO_RUNS); // simulated crowd + connected demo community
       assert.equal(s.json.bins, 20);
       assert.ok(s.json.grid.every(([bx, by, n]) => bx >= 0 && bx < 20 && by >= 0 && by < 20 && n > 0));
+    });
+
+    test('seeded community has shareable profiles and friend comparisons', async () => {
+      const profile = await call('GET', '/api/players/luna');
+      assert.equal(profile.status, 200);
+      assert.equal(profile.json.player.displayName, 'Luna Vale');
+      assert.equal(profile.json.results.length, 5);
+
+      const login = await call('POST', '/api/auth/login', { body: { username: 'demo', password: 'playerprint' }, cookie: '' });
+      assert.equal(login.status, 200);
+      const friends = await call('GET', '/api/friends');
+      assert.equal(friends.status, 200);
+      assert.deepEqual(friends.json.friends.map((friend) => friend.username).sort(), ['arjun', 'luna', 'pixel']);
     });
 
     test('guest can submit a result; resubmits are idempotent', async () => {

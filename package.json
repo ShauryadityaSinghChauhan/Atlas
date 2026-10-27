@@ -12,6 +12,7 @@
     "dev": "node --watch server/index.js",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
+    "seed:community": "node scripts/seed.js --community",
     "reset": "node scripts/seed.js --reset",
     "calibrate": "node scripts/calibrate.js",
     "test": "node scripts/test.js"
