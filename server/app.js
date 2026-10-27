@@ -272,6 +272,7 @@ export function createApp({ store, config }) {
 
   function renderShell(req, pathname) {
     const entry = statics.load(path.join(ROOT, 'public', 'index.html'));
+    if (!entry) throw new Error('The deployed function is missing public/index.html. Check the Vercel includeFiles configuration.');
     let html = entry.raw.toString('utf8');
     const base = config.publicUrl || `http://${req.headers.host || 'localhost'}`;
     let title = 'PLAYERPRINT — the gamer soul atlas';
