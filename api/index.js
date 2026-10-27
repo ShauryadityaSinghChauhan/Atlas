@@ -22,7 +22,7 @@ async function app() {
 export default async function handler(req, res) {
   try {
     const { handle } = await app();
-    return handle(req, res);
+    return await handle(req, res);
   } catch (err) {
     // Do not let a missing production setting turn into Vercel's opaque
     // FUNCTION_INVOCATION_FAILED page. The detailed cause stays in function
