@@ -36,6 +36,10 @@ function toPublicResult(row) {
     x: row.x, y: row.y, scores: row.scores, label: row.label || null, createdAt: row.createdAt,
   };
 }
+function toUser(row) {
+  return { id: row.id, username: row.username, displayName: row.display_name || row.username,
+    avatarUrl: row.avatar_url || null, publicProfile: !!row.public_profile, createdAt: row.created_at };
+}
 
 export function createApp({ store, config }) {
   const sessions = createSessionService(store, config);
@@ -59,6 +63,11 @@ export function createApp({ store, config }) {
     if (!u) throw new HttpError(401, 'Sign in required', 'unauthenticated');
     return u;
   };
+  const requireAdmin = async (req) => {
+    const u = await requireUser(req);
+    if (!config.adminUsernames.has(String(u.username).toLowerCase())) throw new HttpError(403, 'Admin access required', 'forbidden');
+    return u;
+  };
 
   /* ------------------------------ API ------------------------------ */
   const api = createRouter();
@@ -67,7 +76,7 @@ export function createApp({ store, config }) {
 
   api.get('/api/me', async (req) => {
     const u = await sessions.user(req);
-    return { user: u ? { id: u.id, username: u.username, createdAt: u.created_at } : null };
+    return { user: u ? toUser(u) : null };
   });
 
   api.post('/api/auth/register', async (req, res) => {
@@ -80,7 +89,7 @@ export function createApp({ store, config }) {
       throw e;
     }
     await sessions.issue(res, user.id);
-    return [201, { user: { id: user.id, username: user.username } }];
+    return [201, { user: toUser(user) }];
   });
 
   api.post('/api/auth/login', async (req, res) => {
@@ -92,7 +101,7 @@ export function createApp({ store, config }) {
     if (!row) { await burnHash(password); throw new HttpError(401, 'Wrong username or password', 'bad_credentials'); }
     if (!row.pass_hash || !(await verifyPassword(password, row.pass_hash))) throw new HttpError(401, 'Wrong username or password', 'bad_credentials');
     await sessions.issue(res, row.id);
-    return { user: { id: row.id, username: row.username } };
+    return { user: toUser(row) };
   });
 
   // OAuth uses authorization-code flow. The short-lived state cookie binds the
@@ -129,7 +138,7 @@ export function createApp({ store, config }) {
     if (profile.aud !== config.googleClientId || profile.iss !== 'https://accounts.google.com' || profile.email_verified !== 'true' || !profile.sub) {
       throw new HttpError(401, 'Google identity could not be verified', 'bad_google_token');
     }
-    const user = await store.findOrCreateGoogleUser({ sub: profile.sub, email: profile.email, name: profile.name });
+    const user = await store.findOrCreateGoogleUser({ sub: profile.sub, email: profile.email, name: profile.name, picture: profile.picture });
     await sessions.issue(res, user.id);
     const cookies = res.getHeader('Set-Cookie');
     res.setHeader('Set-Cookie', [cookies, serializeCookie(GOOGLE_STATE_COOKIE, '', { maxAge: 0, secure: config.secureCookies })].filter(Boolean));
@@ -137,6 +146,29 @@ export function createApp({ store, config }) {
   });
 
   api.post('/api/auth/logout', async (req, res) => { await sessions.revoke(req, res); return { ok: true }; });
+
+  api.patch('/api/profile', async (req) => {
+    limit('write', req); const u = await requireUser(req); const body = await readJson(req);
+    const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 40) : u.display_name || u.username;
+    const publicProfile = typeof body.publicProfile === 'boolean' ? body.publicProfile : !!u.public_profile;
+    const updated = await store.updateProfile(u.id, { display_name: displayName || u.username, public_profile: publicProfile });
+    return { user: toUser(updated) };
+  });
+  api.get('/api/players/:username', async (_req, _res, { username }) => {
+    const profile = await store.publicProfile(username);
+    if (!profile) throw new HttpError(404, 'This player has not published a profile', 'not_found');
+    return { player: toUser(profile.user), results: profile.results.map(toPublicResult) };
+  });
+  api.get('/api/friends', async (req) => ({ friends: (await store.listFriends((await requireUser(req)).id)).map(toUser) }));
+  api.post('/api/friends', async (req) => {
+    limit('write', req); const u = await requireUser(req); const body = await readJson(req);
+    const username = typeof body.username === 'string' ? body.username.trim() : '';
+    const friend = username && await store.addFriend(u.id, username);
+    if (!friend) throw new HttpError(404, 'That public player was not found', 'not_found');
+    return { friend: toUser(friend) };
+  });
+  api.delete('/api/friends/:id', async (req, _res, { id }) => { const u = await requireUser(req); if (!(await store.removeFriend(u.id, id))) throw new HttpError(404, 'Friend not found', 'not_found'); return { ok: true }; });
+  api.get('/api/admin/stats', async (req) => { await requireAdmin(req); return { ...(await store.adminStats()), generatedAt: Date.now() }; });
 
   // Submit a finished run. Anyone may submit (feeds the anonymous atlas);
   // signed-in users also get it attached to their history.
@@ -192,15 +224,19 @@ export function createApp({ store, config }) {
     return { ok: true };
   });
 
-  api.get('/api/stats', async () => {
-    if (!statsCache || statsCache.at < Date.now() - STATS_TTL) {
-      statsCache = { at: Date.now(), body: { bins: STATS_BINS, ...(await store.stats(STATS_BINS)) } };
+  api.get('/api/stats', async (req) => {
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    const title = /^[A-Z]{1,2}$/.test(query.get('title') || '') ? query.get('title') : null;
+    const source = ['real', 'seed'].includes(query.get('source')) ? query.get('source') : null;
+    const key = `${title || ''}:${source || ''}`;
+    if (!statsCache || statsCache.at < Date.now() - STATS_TTL || statsCache.key !== key) {
+      statsCache = { key, at: Date.now(), body: { bins: STATS_BINS, ...(await store.stats(STATS_BINS, { title, source })) } };
     }
     return statsCache.body;
   });
 
   /* --------------------------- SPA shell --------------------------- */
-  const SPA_ROUTES = /^\/(quiz|me|atlas|about|r\/[0-9a-z]+)?\/?$/;
+  const SPA_ROUTES = /^\/(quiz|me|atlas|about|admin|p\/[a-zA-Z0-9_.-]+|r\/[0-9a-z]+)?\/?$/;
 
   function renderShell(req, pathname) {
     const entry = statics.load(path.join(ROOT, 'public', 'index.html'));

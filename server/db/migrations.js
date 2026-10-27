@@ -55,4 +55,14 @@ export const MIGRATIONS = [
       CREATE UNIQUE INDEX users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
     `,
   },
+  {
+    id: 4,
+    name: 'profiles and friends',
+    sql: `
+      ALTER TABLE users ADD COLUMN display_name TEXT;
+      ALTER TABLE users ADD COLUMN avatar_url TEXT;
+      ALTER TABLE users ADD COLUMN public_profile INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE friends (owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, friend_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, PRIMARY KEY (owner_id, friend_id));
+    `,
+  },
 ];

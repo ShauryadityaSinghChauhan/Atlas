@@ -15,11 +15,12 @@ export function navigate(path, { replace = false } = {}) {
   window.dispatchEvent(new Event('pp:navigate'));
 }
 
-let statsPromise = null, statsAt = 0;
-export function getStats(force = false) {
-  if (force || !statsPromise || Date.now() - statsAt > 30_000) {
+let statsPromise = null, statsAt = 0, statsKey = '';
+export function getStats(force = false, filters = {}) {
+  const key = JSON.stringify(filters);
+  if (force || key !== statsKey || !statsPromise || Date.now() - statsAt > 30_000) {
     statsAt = Date.now();
-    statsPromise = api.stats().catch(() => null);
+    statsKey = key; statsPromise = api.stats(filters).catch(() => null);
   }
   return statsPromise;
 }

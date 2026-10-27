@@ -35,6 +35,22 @@ export async function renderLog(root) {
     return unsub;
   }
 
+  const account = h('section', { class: 'panel account-panel' });
+  const nameInput = h('input', { value: session.user.displayName || session.user.username, maxlength: 40, 'aria-label': 'Display name' });
+  const publicToggle = h('input', { type: 'checkbox', checked: !!session.user.publicProfile, id: 'public-profile-toggle' });
+  const profileUrl = `${location.origin}/p/${encodeURIComponent(session.user.username)}`;
+  account.append(h('div', { class: 'panel-title' }, h('h3', 'Player profile'), h('a', { class: 'btn btn-sm', href: `/p/${session.user.username}`, 'data-link': '' }, 'Preview')),
+    h('p', { style: { marginTop: 0, color: 'var(--ink-2)' } }, 'Choose how your name appears and whether your recent saved prints can be shared.'),
+    h('div', { class: 'profile-controls' }, h('label', {}, 'Display name', nameInput), h('label', { class: 'check' }, publicToggle, ' Publish my player profile'),
+      h('button', { class: 'btn btn-hot', type: 'button', onclick: async () => { try { const r = await api.updateProfile({ displayName: nameInput.value, publicProfile: publicToggle.checked }); session.set(r.user); toast('Profile saved.'); } catch (e) { toast(e.message); } } }, 'Save profile')),
+    h('p', { class: 'kicker', style: { textTransform: 'none', letterSpacing: 0, marginBottom: 0 } }, `Share link: ${profileUrl}`));
+  body.append(account);
+
+  try {
+    const friends = (await api.friends()).friends;
+    if (friends.length) body.append(h('section', { class: 'panel', style: { marginTop: '18px' } }, h('div', { class: 'panel-title' }, h('h3', 'Your circle'), h('span', { class: 'kicker' }, `${friends.length} friend${friends.length === 1 ? '' : 's'}`)), h('div', { class: 'runs' }, friends.map((f) => h('div', { class: 'run' }, h('div', {}, h('div', { class: 't' }, h('a', { href: `/p/${f.username}`, 'data-link': '' }, f.displayName || f.username)), h('div', { class: 'd' }, `@${f.username}`)), armable(h('button', { class: 'btn btn-sm', type: 'button' }, 'Remove'), 'Sure?', async () => { await api.removeFriend(f.id); navigate('/me', { replace: true }); }))))));
+  } catch { /* circle is optional */ }
+
   let runs;
   try { runs = (await api.history()).results; } catch (e) { body.append(h('p', e.message)); return; }
   if (!runs.length) {

@@ -10,6 +10,8 @@ import { renderLog } from './views/log.js';
 import { renderAtlas } from './views/atlas.js';
 import { renderAbout } from './views/about.js';
 import { renderNotFound } from './views/notfound.js';
+import { renderProfile } from './views/profile.js';
+import { renderAdmin } from './views/admin.js';
 
 const routes = [
   [/^\/$/, renderHome],
@@ -18,6 +20,8 @@ const routes = [
   [/^\/me\/?$/, renderLog],
   [/^\/atlas\/?$/, renderAtlas],
   [/^\/about\/?$/, renderAbout],
+  [/^\/p\/([a-zA-Z0-9_.-]+)\/?$/, renderProfile],
+  [/^\/admin\/?$/, renderAdmin],
 ];
 
 const view = $('#view');

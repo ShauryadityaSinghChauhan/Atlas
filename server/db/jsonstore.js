@@ -8,7 +8,7 @@ import { MIGRATIONS } from './migrations.js';
 export async function openJsonStore(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, 'playerprint.json');
-  let s = { users: [], sessions: {}, results: [], nextUserId: 1, migrations: [] };
+  let s = { users: [], sessions: {}, results: [], friends: [], nextUserId: 1, migrations: [] };
   if (fs.existsSync(file)) s = { ...s, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
 
   let timer = null;
@@ -40,7 +40,7 @@ export async function openJsonStore(dataDir) {
     transaction: (fn) => fn(),
     createUser(username, passHash) {
       if (byName(username)) { const e = new Error('UNIQUE constraint failed: users.username'); e.code = 'ERR_SQLITE_ERROR'; throw e; }
-      const u = { id: s.nextUserId++, username, pass_hash: passHash, created_at: Date.now() };
+      const u = { id: s.nextUserId++, username, pass_hash: passHash, display_name: username, public_profile: false, created_at: Date.now() };
       s.users.push(u); save();
       return { id: u.id, username };
     },
@@ -95,10 +95,16 @@ export async function openJsonStore(dataDir) {
       if (!r) return false;
       r.label = label; save(); return true;
     },
-    stats(bins) {
+    updateProfile(id, patch) { const u = s.users.find((x) => x.id === id); if (!u) return null; Object.assign(u, patch); save(); return u; },
+    publicProfile(username) { const u = s.users.find((x) => x.username.toLowerCase() === String(username).toLowerCase() && x.public_profile); return u ? { user: u, results: s.results.filter((r) => r.userId === u.id).sort((a, b) => b.createdAt - a.createdAt).slice(0, 12) } : null; },
+    addFriend(ownerId, username) { const u = s.users.find((x) => x.username.toLowerCase() === String(username).toLowerCase() && x.public_profile); if (!u || u.id === ownerId) return null; if (!s.friends.some((f) => f.owner_id === ownerId && f.friend_id === u.id)) s.friends.push({ owner_id: ownerId, friend_id: u.id, created_at: Date.now() }); save(); return u; },
+    listFriends: (ownerId) => s.friends.filter((f) => f.owner_id === ownerId).map((f) => s.users.find((u) => u.id === f.friend_id)).filter((u) => u?.public_profile),
+    removeFriend(ownerId, friendId) { const i = s.friends.findIndex((f) => f.owner_id === ownerId && f.friend_id === Number(friendId)); if (i < 0) return false; s.friends.splice(i, 1); save(); return true; },
+    stats(bins, filters = {}) {
       const titles = {}, cells = new Map();
       let seeded = 0;
-      for (const r of s.results) {
+      const rows = s.results.filter((r) => (!filters.title || r.titleKey === filters.title) && (!filters.source || (filters.source === 'real' ? !r.isSeed : r.isSeed)));
+      for (const r of rows) {
         titles[r.titleKey] = (titles[r.titleKey] || 0) + 1;
         if (r.isSeed) seeded++;
         const bx = Math.min(bins - 1, Math.floor(((r.x + 1) / 2) * bins));
@@ -107,8 +113,9 @@ export async function openJsonStore(dataDir) {
         cells.set(k, (cells.get(k) || 0) + 1);
       }
       const grid = [...cells].map(([k, n]) => [...k.split(',').map(Number), n]);
-      return { total: s.results.length, seeded, titles, grid };
+      return { total: rows.length, seeded, titles, grid };
     },
+    adminStats() { return { users: s.users.length, googleUsers: s.users.filter((u) => u.google_sub).length, publicProfiles: s.users.filter((u) => u.public_profile).length, results: s.results.length, friends: s.friends.length }; },
     close: () => { if (timer) { clearTimeout(timer); flush(); } },
   };
 }

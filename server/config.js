@@ -34,4 +34,6 @@ export const config = {
   googleClientId: env.GOOGLE_CLIENT_ID || '',
   googleClientSecret: env.GOOGLE_CLIENT_SECRET || '',
   googleRedirectUri: env.GOOGLE_REDIRECT_URI || '',
+  // Comma-separated usernames allowed to view /admin (for example: ADMIN_USERNAMES=alice,bob).
+  adminUsernames: new Set((env.ADMIN_USERNAMES || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean)),
 };

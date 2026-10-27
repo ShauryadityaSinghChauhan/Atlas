@@ -54,8 +54,8 @@ export async function openSqlite(dataDir) {
   const q = {
     insUser: db.prepare('INSERT INTO users (username, pass_hash, created_at) VALUES (?, ?, ?)'),
     userByName: db.prepare('SELECT * FROM users WHERE username = ?'),
-    userById: db.prepare('SELECT id, username, created_at FROM users WHERE id = ?'),
-    userByGoogleSub: db.prepare('SELECT id, username, created_at FROM users WHERE google_sub = ?'),
+    userById: db.prepare('SELECT *, COALESCE(display_name, username) AS display_name FROM users WHERE id = ?'),
+    userByGoogleSub: db.prepare('SELECT *, COALESCE(display_name, username) AS display_name FROM users WHERE google_sub = ?'),
     insGoogleUser: db.prepare('INSERT INTO users (username, google_sub, email, created_at) VALUES (?, ?, ?, ?)'),
     insSession: db.prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'),
     session: db.prepare('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?'),
@@ -75,6 +75,12 @@ export async function openSqlite(dataDir) {
                       FROM results GROUP BY bx, by`),
     recentDup: db.prepare('SELECT public_id FROM results WHERE code = ? AND user_id IS ? AND created_at > ? LIMIT 1'),
     claim: db.prepare('UPDATE results SET user_id = ? WHERE public_id = ? AND code = ? AND user_id IS NULL AND is_seed = 0 AND created_at > ?'),
+    profile: db.prepare('SELECT *, COALESCE(display_name, username) AS display_name FROM users WHERE username = ? AND public_profile = 1'),
+    profileResults: db.prepare('SELECT * FROM results WHERE user_id = ? ORDER BY created_at DESC LIMIT 12'),
+    updProfile: db.prepare('UPDATE users SET display_name = ?, public_profile = ? WHERE id = ?'),
+    addFriend: db.prepare('INSERT OR IGNORE INTO friends (owner_id, friend_id, created_at) VALUES (?, ?, ?)'),
+    friendRows: db.prepare('SELECT u.*, COALESCE(u.display_name, u.username) AS display_name FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.owner_id = ? AND u.public_profile = 1'),
+    delFriend: db.prepare('DELETE FROM friends WHERE owner_id = ? AND friend_id = ?'),
   };
 
   return {
@@ -115,12 +121,23 @@ export async function openSqlite(dataDir) {
     listResultsByUser: (userId, limit = 100) => q.byUser.all(userId, limit).map(rowToResult),
     deleteResult: (pid, userId) => q.delResult.run(pid, userId).changes > 0,
     labelResult: (pid, userId, label) => q.label.run(label, pid, userId).changes > 0,
-    stats(bins) {
-      const { n, seeded } = q.count.get();
-      const titles = Object.fromEntries(q.titles.all().map((r) => [r.k, r.n]));
-      const grid = q.grid.all({ bins }).map((r) => [r.bx, r.by, r.n]);
+    updateProfile(id, patch) { q.updProfile.run(patch.display_name, patch.public_profile ? 1 : 0, id); return q.userById.get(id); },
+    publicProfile(username) { const u = q.profile.get(username); return u ? { user: u, results: q.profileResults.all(u.id).map(rowToResult) } : null; },
+    addFriend(ownerId, username) { const u = q.profile.get(username); if (!u || u.id === ownerId) return null; q.addFriend.run(ownerId, u.id, Date.now()); return u; },
+    listFriends: (ownerId) => q.friendRows.all(ownerId),
+    removeFriend: (ownerId, friendId) => q.delFriend.run(ownerId, friendId).changes > 0,
+    stats(bins, filters = {}) {
+      const clauses = [], values = [];
+      if (filters.title) { clauses.push('title_key = ?'); values.push(filters.title); }
+      if (filters.source === 'real') clauses.push('is_seed = 0');
+      if (filters.source === 'seed') clauses.push('is_seed = 1');
+      const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+      const { n, seeded } = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(is_seed), 0) AS seeded FROM results${where}`).get(...values);
+      const titles = Object.fromEntries(db.prepare(`SELECT title_key AS k, COUNT(*) AS n FROM results${where} GROUP BY title_key`).all(...values).map((r) => [r.k, r.n]));
+      const grid = db.prepare(`SELECT MIN(? - 1, CAST((x + 1) / 2 * ? AS INTEGER)) AS bx, MIN(? - 1, CAST((1 - y) / 2 * ? AS INTEGER)) AS by, COUNT(*) AS n FROM results${where} GROUP BY bx, by`).all(bins, bins, bins, bins, ...values).map((r) => [r.bx, r.by, r.n]);
       return { total: n, seeded, titles, grid };
     },
+    adminStats() { return { users: db.prepare('SELECT COUNT(*) n FROM users').get().n, googleUsers: db.prepare('SELECT COUNT(*) n FROM users WHERE google_sub IS NOT NULL').get().n, publicProfiles: db.prepare('SELECT COUNT(*) n FROM users WHERE public_profile = 1').get().n, results: q.count.get().n, friends: db.prepare('SELECT COUNT(*) n FROM friends').get().n }; },
     close: () => db.close(),
   };
 }

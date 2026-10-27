@@ -25,5 +25,11 @@ export const api = {
   history: () => call('GET', '/api/results'),
   label: (id, label) => call('PATCH', `/api/results/${encodeURIComponent(id)}`, { label }),
   remove: (id) => call('DELETE', `/api/results/${encodeURIComponent(id)}`),
-  stats: () => call('GET', '/api/stats'),
+  stats: (filters = {}) => { const q = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)); return call('GET', `/api/stats${q.size ? `?${q}` : ''}`); },
+  updateProfile: (body) => call('PATCH', '/api/profile', body),
+  player: (username) => call('GET', `/api/players/${encodeURIComponent(username)}`),
+  friends: () => call('GET', '/api/friends'),
+  addFriend: (username) => call('POST', '/api/friends', { username }),
+  removeFriend: (id) => call('DELETE', `/api/friends/${encodeURIComponent(id)}`),
+  adminStats: () => call('GET', '/api/admin/stats'),
 };
