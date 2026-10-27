@@ -75,6 +75,13 @@ for (const kind of ['sqlite', 'json']) {
       const friends = await call('GET', '/api/friends');
       assert.equal(friends.status, 200);
       assert.deepEqual(friends.json.friends.map((friend) => friend.username).sort(), ['arjun', 'luna', 'pixel']);
+
+      assert.equal((await call('POST', '/api/friends', { body: { username: 'nova' } })).status, 200);
+      const withNova = await call('GET', '/api/friends');
+      const nova = withNova.json.friends.find((friend) => friend.username === 'nova');
+      assert.ok(nova);
+      assert.equal((await call('DELETE', `/api/friends/${nova.id}`)).status, 200);
+      assert.ok(!(await call('GET', '/api/friends')).json.friends.some((friend) => friend.username === 'nova'));
     });
 
     test('guest can submit a result; resubmits are idempotent', async () => {

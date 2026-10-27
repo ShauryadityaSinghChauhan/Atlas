@@ -1,4 +1,4 @@
-import { h, fmtDate, toast } from '../dom.js';
+import { h, fmtDate, toast, armable } from '../dom.js';
 import { api } from '../api.js';
 import { session, navigate, openAuth } from '../state.js';
 import { TITLES } from '/shared/engine.js';
@@ -13,12 +13,28 @@ export async function renderProfile(root, { params }) {
   await session.ready;
   const { player, results } = profile;
   const latest = results[0];
+  let friend = null;
+  let myLatest = null;
+  if (session.user) {
+    const [circle, history] = await Promise.all([
+      api.friends().catch(() => ({ friends: [] })),
+      api.history().catch(() => ({ results: [] })),
+    ]);
+    friend = circle.friends.find((entry) => String(entry.id) === String(player.id)) || null;
+    myLatest = history.results[0] || null;
+  }
   const actions = h('div', { class: 'share-btns' });
-  if (session.user && session.user.username !== player.username) actions.append(h('button', { class: 'btn btn-hot', type: 'button', onclick: async () => {
-    try { await api.addFriend(player.username); toast(`${player.displayName} added to your circle.`); } catch (err) { toast(err.message); }
-  } }, 'Add friend'));
+  if (session.user && session.user.username !== player.username) {
+    if (friend) actions.append(armable(h('button', { class: 'btn btn-ghost', type: 'button' }, 'Remove friend'), 'Remove?', async () => {
+      try { await api.removeFriend(friend.id); toast(`${player.displayName} removed from your circle.`); navigate('/friends'); } catch (err) { toast(err.message); }
+    }));
+    else actions.append(h('button', { class: 'btn btn-hot', type: 'button', onclick: async () => {
+      try { await api.addFriend(player.username); toast(`${player.displayName} added to your circle.`); navigate('/friends'); } catch (err) { toast(err.message); }
+    } }, 'Add friend'));
+  }
   if (!session.user) actions.append(h('button', { class: 'btn btn-hot', type: 'button', onclick: () => openAuth({ mode: 'login' }) }, 'Sign in to compare'));
-  if (session.user && latest) actions.append(h('a', { class: 'btn btn-ghost', href: `/r/${latest.code}?vs=${latest.code}`, 'data-link': '' }, 'Open latest print'));
+  if (session.user && latest && myLatest) actions.append(h('a', { class: 'btn btn-ghost', href: `/r/${myLatest.code}?vs=${latest.code}`, 'data-link': '' }, 'Compare latest prints'));
+  else if (latest) actions.append(h('a', { class: 'btn btn-ghost', href: `/r/${latest.code}`, 'data-link': '' }, 'View latest print'));
   root.append(h('section', { class: 'page' }, h('div', { class: 'wrap' },
     h('div', { class: 'page-head profile-head' }, player.avatarUrl ? h('img', { class: 'profile-avatar', src: player.avatarUrl, alt: '' }) : null,
       h('span', { class: 'kicker' }, 'Public player profile'), h('h1', player.displayName), h('p', `@${player.username} · charting since ${fmtDate(player.createdAt)}`), actions),
