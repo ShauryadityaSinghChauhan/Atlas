@@ -2,6 +2,9 @@
 export async function openStore({ dataDir, store = 'auto', mongoUri, mongoDb }) {
   if (store === 'mongo') {
     if (!mongoUri) throw new Error('MONGO_URI is required when STORE=mongo');
+    if (!/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) {
+      throw new Error('MONGO_URI must start with mongodb:// or mongodb+srv://. Replace the placeholder in .env with your MongoDB Atlas or local connection string.');
+    }
     return (await import('./mongo.js')).openMongoStore({ uri: mongoUri, dbName: mongoDb });
   }
   if (store === 'json') return (await import('./jsonstore.js')).openJsonStore(dataDir);
