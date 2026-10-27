@@ -20,6 +20,18 @@ async function app() {
 }
 
 export default async function handler(req, res) {
-  const { handle } = await app();
-  return handle(req, res);
+  try {
+    const { handle } = await app();
+    return handle(req, res);
+  } catch (err) {
+    // Do not let a missing production setting turn into Vercel's opaque
+    // FUNCTION_INVOCATION_FAILED page. The detailed cause stays in function
+    // logs, while callers get a safe, actionable response.
+    console.error('[startup]', err);
+    res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({
+      error: 'The service is not ready. Check Vercel function logs and MongoDB production environment variables.',
+      code: 'startup_failed',
+    }));
+  }
 }
