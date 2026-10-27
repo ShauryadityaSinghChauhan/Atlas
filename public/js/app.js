@@ -13,7 +13,6 @@ import { renderNotFound } from './views/notfound.js';
 import { renderProfile } from './views/profile.js';
 import { renderAdmin } from './views/admin.js';
 import { renderAccount } from './views/account.js';
-import { renderReset } from './views/reset.js';
 import { renderFriends } from './views/friends.js';
 
 const routes = [
@@ -26,7 +25,6 @@ const routes = [
   [/^\/p\/([a-zA-Z0-9_.-]+)\/?$/, renderProfile],
   [/^\/admin\/?$/, renderAdmin],
   [/^\/profile\/?$/, renderAccount],
-  [/^\/reset-password\/?$/, renderReset],
   [/^\/friends\/?$/, renderFriends],
 ];
 

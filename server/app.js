@@ -14,7 +14,6 @@ import { describeShort } from '../shared/content.js';
 const STATS_BINS = 20;
 const STATS_TTL = 15_000;
 const newPublicId = () => crypto.randomBytes(6).toString('base64url');
-const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -83,10 +82,9 @@ export function createApp({ store, config }) {
   api.post('/api/auth/register', async (req, res) => {
     limit('auth', req);
     const body = await readJson(req); const { username, password } = validateCredentials(body);
-    const email = typeof body.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim()) ? body.email.trim().toLowerCase() : null;
     if (await store.findUserByName(username)) throw new HttpError(409, 'That username is taken', 'username_taken');
     let user;
-    try { user = await store.createUser(username, await hashPassword(password), email); } catch (e) {
+    try { user = await store.createUser(username, await hashPassword(password)); } catch (e) {
       if (/UNIQUE/.test(e.message)) throw new HttpError(409, 'That username is taken', 'username_taken');
       throw e;
     }
@@ -148,23 +146,6 @@ export function createApp({ store, config }) {
   });
 
   api.post('/api/auth/logout', async (req, res) => { await sessions.revoke(req, res); return { ok: true }; });
-  api.post('/api/auth/password-reset', async (req) => {
-    limit('auth', req); const body = await readJson(req); const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const user = email && store.findUserByEmail ? await store.findUserByEmail(email) : null;
-    if (user && store.createPasswordReset) {
-      const token = crypto.randomBytes(32).toString('base64url'); await store.createPasswordReset(tokenHash(token), user.id, Date.now() + 3600_000);
-      const base = config.resetBaseUrl || `http://${req.headers.host}`; const link = `${base.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
-      if (config.resendApiKey && config.emailFrom) {
-        await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: config.emailFrom, to: [email], subject: 'Reset your PLAYERPRINT password', html: `<p>Reset your password:</p><p><a href="${link}">${link}</a></p><p>This link expires in one hour.</p>` }) }).catch(() => {});
-      } else console.log(`[auth] password reset for ${user.username}: ${link}`);
-    }
-    return { ok: true };
-  });
-  api.post('/api/auth/password-reset/confirm', async (req) => {
-    limit('auth', req); const body = await readJson(req); const token = typeof body.token === 'string' ? body.token : ''; const password = typeof body.password === 'string' ? body.password : '';
-    if (!token || password.length < 8 || !store.consumePasswordReset || !(await store.consumePasswordReset(tokenHash(token), await hashPassword(password)))) throw new HttpError(400, 'This reset link is invalid or expired', 'bad_reset_token');
-    return { ok: true };
-  });
 
   api.patch('/api/profile', async (req) => {
     limit('write', req); const u = await requireUser(req); const body = await readJson(req);
@@ -287,7 +268,7 @@ export function createApp({ store, config }) {
   });
 
   /* --------------------------- SPA shell --------------------------- */
-  const SPA_ROUTES = /^\/(quiz|me|profile|friends|reset-password|atlas|about|admin|p\/[a-zA-Z0-9_.-]+|r\/[0-9a-z]+)?\/?$/;
+  const SPA_ROUTES = /^\/(quiz|me|profile|friends|atlas|about|admin|p\/[a-zA-Z0-9_.-]+|r\/[0-9a-z]+)?\/?$/;
 
   function renderShell(req, pathname) {
     const entry = statics.load(path.join(ROOT, 'public', 'index.html'));

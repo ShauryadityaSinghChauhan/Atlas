@@ -39,7 +39,4 @@ export const config = {
   cloudinaryCloudName: env.CLOUDINARY_CLOUD_NAME || '',
   cloudinaryApiKey: env.CLOUDINARY_API_KEY || '',
   cloudinaryApiSecret: env.CLOUDINARY_API_SECRET || '',
-  resetBaseUrl: env.RESET_BASE_URL || env.PUBLIC_URL || '',
-  resendApiKey: env.RESEND_API_KEY || '',
-  emailFrom: env.EMAIL_FROM || '',
 };

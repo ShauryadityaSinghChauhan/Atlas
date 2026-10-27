@@ -19,7 +19,7 @@ async function call(method, url, body) {
 export const api = {
   me: () => call('GET', '/api/me'),
   login: (username, password) => call('POST', '/api/auth/login', { username, password }),
-  register: (username, password, email = '') => call('POST', '/api/auth/register', { username, password, email }),
+  register: (username, password) => call('POST', '/api/auth/register', { username, password }),
   logout: () => call('POST', '/api/auth/logout', {}),
   submit: (code, extra = {}) => call('POST', '/api/results', { code, ...extra }),
   history: () => call('GET', '/api/results'),
@@ -29,8 +29,6 @@ export const api = {
   updateProfile: (body) => call('PATCH', '/api/profile', body),
   profileUploadSignature: () => call('POST', '/api/profile/upload-signature', {}),
   uploadProfileImage: (dataUrl) => call('POST', '/api/profile/image', { dataUrl }),
-  requestPasswordReset: (email) => call('POST', '/api/auth/password-reset', { email }),
-  confirmPasswordReset: (token, password) => call('POST', '/api/auth/password-reset/confirm', { token, password }),
   exportAccount: () => call('GET', '/api/account/export'),
   deleteAccount: () => call('DELETE', '/api/account'),
   player: (username) => call('GET', `/api/players/${encodeURIComponent(username)}`),

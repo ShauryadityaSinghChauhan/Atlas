@@ -44,8 +44,8 @@ docker run -p 3000:3000 -v playerprint-data:/data playerprint
 The repository includes a Vercel serverless entry point and rewrites in `vercel.json`.
 
 1. Push this repository to GitHub and import it in Vercel.
-2. In Vercel **Project Settings → Environment Variables**, add the values from `.env` (never upload the `.env` file): `MONGODB_URI`, `MONGO_DB`, `STORE=mongo`, Google OAuth variables, Cloudinary variables, and optional Resend variables.
-3. Set `PUBLIC_URL` and `RESET_BASE_URL` to your final `https://…vercel.app` domain, set `SECURE_COOKIES=1`, and set `SEED=0`. Seed the MongoDB database once from your machine before deployment with `SEED=1 STORE=mongo npm run seed` using the same Atlas variables, then return `SEED` to `0`.
+2. In Vercel **Project Settings → Environment Variables**, add the values from `.env` (never upload the `.env` file): `MONGODB_URI`, `MONGO_DB`, `STORE=mongo`, Google OAuth variables, and Cloudinary variables.
+3. Set `PUBLIC_URL` to your final `https://…vercel.app` domain, set `SECURE_COOKIES=1`, and set `SEED=0`. Seed the MongoDB database once from your machine before deployment with `SEED=1 STORE=mongo npm run seed` using the same Atlas variables, then return `SEED` to `0`.
 4. In Google Cloud Console add `https://your-domain.vercel.app/api/auth/google/callback` as an authorized redirect URI. It must exactly match `GOOGLE_REDIRECT_URI`.
 5. In MongoDB Atlas allow Vercel network access. For a first deployment, Atlas's `0.0.0.0/0` rule works but should be restricted when you have stable egress IPs.
 
