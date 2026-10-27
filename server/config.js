@@ -20,8 +20,9 @@ export const config = {
   // Where the SQLite file (or JSON fallback) lives.
   dataDir: path.resolve(ROOT, env.DATA_DIR || 'data'),
   // 'mongo' | 'sqlite' | 'json' | 'auto'. Mongo is selected when MONGO_URI is set.
-  store: env.STORE || (env.MONGO_URI ? 'mongo' : 'auto'),
-  mongoUri: env.MONGO_URI || '',
+  store: env.STORE || (env.MONGO_URI || env.MONGODB_URI ? 'mongo' : 'auto'),
+  // MONGODB_URI is accepted as the conventional alias used by Atlas tooling.
+  mongoUri: env.MONGO_URI || env.MONGODB_URI || '',
   mongoDb: env.MONGO_DB || 'playerprint',
   // Set to 1 when served over HTTPS so the session cookie gets `Secure`.
   secureCookies: env.SECURE_COOKIES === '1',
