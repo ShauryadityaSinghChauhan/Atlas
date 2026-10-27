@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: playerprint
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: STORE
+        value: mongo
+      - key: MONGO_DB
+        value: playerprint
+      - key: SECURE_COOKIES
+        value: "1"
+      - key: SEED
+        value: "0"
+      - key: SESSION_DAYS
+        value: "30"
+      - key: MONGODB_URI
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: ADMIN_USERNAMES
+        sync: false

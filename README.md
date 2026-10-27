@@ -103,6 +103,20 @@ The repository includes a Vercel serverless entry point and rewrites in `vercel.
 
 Vercel functions have body-size limits, so profile photos are centre-cropped and limited to 2 MB before upload.
 
+### Deploy on Render
+
+The included [`render.yaml`](render.yaml) creates a Node web service with `/api/health` as its health check.
+
+1. In Render, select **New → Blueprint**, connect this GitHub repository and create the service.
+2. Enter the requested secret values. Use `STORE=mongo`, `MONGO_DB=playerprint`, `SECURE_COOKIES=1` and `SEED=0` as supplied by the Blueprint.
+3. After Render assigns a URL, set `PUBLIC_URL` to that exact `https://…onrender.com` origin and set `GOOGLE_REDIRECT_URI` to `https://…onrender.com/api/auth/google/callback`.
+4. Add that exact Render callback URI in Google Cloud Console. Keep the Vercel callback there too if both deployments should support Google sign-in.
+5. Use the same MongoDB Atlas database and Cloudinary credentials as Vercel. Atlas network access must allow both hosts; the active `0.0.0.0/0` rule does that.
+
+### Running Vercel and Render together
+
+Both services can use the same MongoDB database. They should have **different** `PUBLIC_URL` and `GOOGLE_REDIRECT_URI` values because each host has a different domain. Add both callback URLs to the same Google OAuth client. For consistent sessions and shared data, keep `MONGODB_URI`, `MONGO_DB`, Cloudinary values and `ADMIN_USERNAMES` the same on both hosts.
+
 ### Scripts
 
 | Command | What it does |
