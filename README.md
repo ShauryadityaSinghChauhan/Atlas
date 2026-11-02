@@ -279,3 +279,6 @@ npm test
 
 - **Engine:** codes round-trip on 2,000 random answer sets; malformed codes are rejected; scores stay in [0,1]; the dot stays inside the hexagon; the dot sits in its title's wedge (3,000 personas); pure players classify to their own pole at ≥90% certainty and are never flagged as button-mashers; the bootstrap is deterministic; all 19 titles produce complete readings.
 - **API (×2 adapters):** auth lifecycle, case-insensitive usernames, guest claim without double counting, idempotent submits, labels, ownership checks on delete, validation (400/413/415), cross-origin rejection, cookie flags, OG tag injection, ETag/304, traversal and 404/405 handling.
+
+## VIDEO LINK
+https://drive.google.com/file/d/1ZzygjVdZN0Jpz4Ni48ysFZZgG2SWeSl7/view?usp=sharing
